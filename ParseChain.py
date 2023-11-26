@@ -3,6 +3,11 @@ import re
 import math
 from struct import pack
 
+# Look for add eax, <reg>
+#        + mov <stack> eax gadgets for allowing zero bytes in target addresses
+
+# Challenge, find a way to offset stack reg value to allow for zero bytes in addresses. Large chain of 'inc'/'dec' instructions may overflow stack
+
 class ParseChain():
     def __init__(self) -> None:
         self.DST_REG = 'edx'
