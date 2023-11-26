@@ -27,7 +27,7 @@ class ParseChain():
             return True
         
         regex = re.search('pop ' + self.DST_REG, gadget)
-        if regex:
+        if regex and self.DST_REG not in ['ebx', 'ecx', 'edx']:
             instructions = ' '.join(gadget.split(' ')[1:]).split(' ; ')
             for ins in instructions:
                 if ins == 'pop ' + self.DST_REG:
@@ -39,7 +39,7 @@ class ParseChain():
             return False
         
         regex = re.search('pop ' + self.SRC_REG, gadget)
-        if regex:
+        if regex and self.SRC_REG not in ['ebx', 'ecx', 'edx']:
             instructions = ' '.join(gadget.split(' ')[1:]).split(' ; ')
             for ins in instructions:
                 if ins == 'pop ' + self.SRC_REG:
@@ -51,13 +51,14 @@ class ParseChain():
             return False
         
         regex = re.search('xor ' + self.SRC_REG + ", " + self.SRC_REG + ' ; ret', gadget)
-        if regex:
+        if regex and self.SRC_REG != 'eax':
             self.XOR_SRC = pack('<I', int(gadget.split(' ')[0], 16))
             return True
         
         regex = re.search('xor eax, eax ; ret', gadget)
         if regex:
             self.XOR_EAX = pack('<I', int(gadget.split(' ')[0], 16))
+            if self.SRC_REG == 'eax': self.XOR_SRC = self.XOR_EAX
             return True
         
         regex = re.search('inc eax ; ret', gadget)
@@ -73,8 +74,15 @@ class ParseChain():
                     self.POP_EBX = pack('<I', int(gadget.split(' ')[0], 16))
                     self.PEBX += 'B'
                 elif ins.split(' ')[0] == 'pop':
-                    self.PEBX += ins.split(' ')[1][0:1].upper()
-                elif ins == 'ret': return True
+                    self.PEBX += ins.split(' ')[1][1:2].upper()
+                elif ins.strip() == 'ret': 
+                    if self.DST_REG == 'ebx':
+                        self.POP_DST_REG = self.POP_EBX
+                        self.PDST = self.PEBX
+                    elif self.SRC_REG == 'ebx':
+                        self.POP_SRC_REG = self.POP_EBX
+                        self.PSRC = self.PEBX
+                    return True
             return False
         
         regex = re.search('pop ecx', gadget)
@@ -85,8 +93,15 @@ class ParseChain():
                     self.POP_ECX = pack('<I', int(gadget.split(' ')[0], 16))
                     self.PECX += 'C'
                 elif ins.split(' ')[0] == 'pop':
-                    self.PECX += ins.split(' ')[1][0:1].upper()
-                elif ins == 'ret': return True
+                    self.PECX += ins.split(' ')[1][1:2].upper()
+                elif ins.strip() == 'ret': 
+                    if self.DST_REG == 'ecx':
+                        self.POP_DST_REG = self.POP_ECX
+                        self.PDST = self.PECX
+                    elif self.SRC_REG == 'ecx':
+                        self.POP_SRC_REG = self.POP_ECX
+                        self.PSRC = self.PECX
+                    return True
             return False
         
         regex = re.search('pop edx', gadget)
@@ -97,8 +112,15 @@ class ParseChain():
                     self.POP_EDX = pack('<I', int(gadget.split(' ')[0], 16))
                     self.PEDX += 'D'
                 elif ins.split(' ')[0] == 'pop':
-                    self.PEDX += ins.split(' ')[1][0:1].upper()
-                elif ins == 'ret': return True
+                    self.PEDX += ins.split(' ')[1][1:2].upper()
+                elif ins.strip() == 'ret': 
+                    if self.DST_REG == 'edx':
+                        self.POP_DST_REG = self.POP_EDX
+                        self.PDST = self.PEDX
+                    elif self.SRC_REG == 'edx':
+                        self.POP_SRC_REG = self.POP_EDX
+                        self.PSRC = self.PEDX
+                    return True
             return False
 
         regex = re.search('int 0x80', gadget)
@@ -111,15 +133,19 @@ class ParseChain():
 
     def pad_pop_dst(self, data):
         p = self.POP_DST_REG
+        reg_id = 'B'
+        if self.DST_REG in ['ebx', 'ecx', 'edx']: reg_id = self.DST_REG[1:2].upper()
         for r in self.PDST:
-            if r == 'B': p += data
+            if r == reg_id: p += data
             else: p += pack('<I', 0x41414141)
         return p
     
     def pad_pop_src(self, data):
         p = self.POP_SRC_REG
+        reg_id = 'B'
+        if self.SRC_REG in ['ebx', 'ecx', 'edx']: reg_id = self.SRC_REG[1:2].upper()
         for r in self.PSRC:
-            if r == 'B': p += data
+            if r == reg_id: p += data
             else: p += pack('<I', 0x41414141)
         return p
 
@@ -170,17 +196,20 @@ class ParseChain():
         p += self.MOVSTACK
 
         p += self.POP_EBX
+        print(self.PEBX)
         for r in self.PEBX:
             if r == 'B': p += pack('<I', self.DATA)
             else: p += pack('<I', 0x41414141)
 
         p += self.POP_ECX
+        print(self.PECX)
         for r in self.PECX:
             if r == 'B': p += pack('<I', self.DATA)
             elif r == 'C': p += pack('<I', self.DATA + 100)
             else: p += pack('<I', 0x41414141)
 
         p += self.POP_EDX
+        print(self.PEDX)
         for r in self.PEDX:
             if r == 'B': p += pack('<I', self.DATA)
             elif r == 'C': p += pack('<I', self.DATA + 100)
