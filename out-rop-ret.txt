@@ -1612,18 +1612,7 @@
 0x08048843 : add ecx, ecx ; ret
 0x080c5cfe : add ecx, edx ; add dword ptr [edx], ecx ; push cs ; adc al, 0x41 ; ret
 0x080c8f80 : add edi, dword ptr [ecx + eax] ; or cl, byte ptr [esi] ; adc al, 0x41 ; ret
-0x080d1b24 : add edi, dword ptr [ecx] ; add dword ptr [edx], ecx ; ret
-0x080c49e1 : add edi, dword ptr [edi + 0x140e0a01] ; inc ecx ; ret
-0x080d018a : add edi, dword ptr [edi + 0xa] ; ret
-0x080d0663 : add edi, dword ptr [edx + 1] ; or cl, byte ptr [esi] ; adc al, 0x41 ; ret
-0x080cedd4 : add edi, esi ; add al, 0xa ; ret
-0x080d06a5 : add edx, dword ptr [eax + 1] ; or cl, byte ptr [esi] ; adc al, 0x41 ; ret
-0x080ce128 : add edx, dword ptr [eax] ; add dword ptr [edx], ecx ; ret
-0x080d62a0 : add edx, dword ptr [ebx + 1] ; or cl, byte ptr [esi] ; adc al, 0x46 ; ret
-0x080d28c8 : add edx, dword ptr [edi] ; add ecx, dword ptr [edx] ; ret
-0x080d392e : add edx, dword ptr [edx + 1] ; or cl, byte ptr [esi] ; adc al, 0x41 ; ret
-0x080d2908 : add edx, edi ; add ecx, dword ptr [edx] ; ret
-0x080c806e : add esi, dword ptr [eax + 0xa] ; ret
+0x080d1b24 : add edi, dword ptr [ecx] ; add dword ptr [edx], ecx ; ret mov ebx, dword ptr [esp] ; ret
 0x080cbbe8 : add esi, dword ptr [eax + 1] ; or cl, byte ptr [esi] ; adc al, 0x41 ; ret
 0x0807d00a : add esi, dword ptr [ebp - 0x15] ; mov eax, ebx ; pop ebx ; pop esi ; pop edi ; ret
 0x0807cfe2 : add esi, dword ptr [ebp - 0x1d] ; mov eax, ebx ; pop ebx ; pop esi ; pop edi ; ret
