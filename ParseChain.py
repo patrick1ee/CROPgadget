@@ -239,6 +239,8 @@ class ParseChain():
             if regex: self.parse_gadget(line.split(":")[1][1:])
             regex = re.search("# @ .data\n", line)
             if regex: self.parse_data_loc(line.split(",")[1][1:11])
+            regex = re.search("add eax, (?P<src>([(ebx)|(ecx)|(edx)]{3})) ; ret", line)
+            if regex: print(line)
         
         chain = self.make_chain(cmd, args)
         self.write_chain(chain)
