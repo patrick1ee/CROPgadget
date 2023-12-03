@@ -29,16 +29,14 @@ class GadgetFinder():
         for p in parts:
             words = list(filter(lambda x: len(x) > 0, p.split(' ')))
 
-            # Check for blacklisted instructions/keywords
-            for wlw in self.warnlist:
-                if wlw in words and p.strip() != instruction.value: return
-
             ins = words[0]
-            waddr = None
+            waddr = ''
+
             for i in range(1, len(words)):
-                if words[i][-1] == ',': waddr = words[i][:-1]
+                waddr = words[i][:-1] if words[i][-1] == ',' else ''
                 if waddr in reserved: return
-                if p == instruction.value: reserved.append(waddr)
+                if p.strip() == instruction.value and len(waddr) > 0: reserved.append(waddr)  
+                if p.strip() != instruction.value and words[i] in self.warnlist: return
 
             if ins == 'pop': gadget.side_pops.append(words[1])
             gadget.complexity += 1
@@ -51,21 +49,23 @@ class GadgetFinder():
 
     def search_gadgets(self, line, instructions):
         for instruction in instructions:
-            regex = re.search(instruction.value, line)
+            regex = re.search(instruction.value.replace('[', '\[').replace(']', '\]'), line)
             if regex:
                 parts = line.split(':')
                 addr = parts[0].strip()
                 parts = parts[1].split(';')
                 self.parse_gadget(addr, parts, instruction)
 
-
     def start(self):
-        file1 = open('out-rop-ret2.txt', 'r')
+        file1 = open('out-rop-ret.txt', 'r')
         Lines = file1.readlines()
 
         instructions = [
+            Instruction('mov dword ptr [edx], eax', ['esp']),
+            Instruction('pop edx', ['esp']),
             Instruction('pop eax', ['esp']),
             Instruction('xor eax, eax', ['esp']),
+            Instruction('inc eax', ['esp']),
             Instruction('pop ebx', ['eax', 'esp']),
             Instruction('pop ecx', ['ebx', 'eax', 'esp'])
         ]
