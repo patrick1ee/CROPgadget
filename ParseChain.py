@@ -263,10 +263,9 @@ class ParseChain():
         p += self.MOVSTACK
 
         return p
-    
-    def make_chain(self, cmd='', args=[]):
-        p = b'A'*40
-        p += b'B'*4
+        
+    def make_chain(self, cmd='', args=[], padding = 0):
+        p = b'A'*padding
 
         offset = 0
         shadow_offset = 100
@@ -327,7 +326,7 @@ class ParseChain():
         out_file.write(chain)
 
 
-    def start(self, stdout, cmd, args):
+    def start(self, stdout, cmd, args, padding):
         for line in stdout:
             result = self.parse_gadget(line)
             if result: print(line)
@@ -336,5 +335,5 @@ class ParseChain():
             regex = re.search("# @ .data\n", line)
             if regex: self.parse_data_loc(line.split(",")[1][1:11])
         
-        chain = self.make_chain(cmd, args)
+        chain = self.make_chain(cmd, args, padding)
         self.write_chain(chain)
