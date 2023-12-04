@@ -39,7 +39,9 @@ def main():
 
     gadgets = eb.gadget_finder.gadgets
     for k, v in gadgets.items():
-        print(k + " :: " + str(v.address) + ", " + str(v.complexity )+ ", " + str(v.side_pops))
+        print(k + " :: " + str(hex(v.address)) + ", " + str(v.complexity )+ ", " + str(v.side_pops))
+
+    print("DATA " + str(hex(eb.gadget_finder.data)))
 
 
 main()

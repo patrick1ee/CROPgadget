@@ -1,5 +1,6 @@
 import math
 import re
+from struct import pack
 
 class Instruction():
     def __init__(self, value, reserved) -> None:
@@ -12,9 +13,13 @@ class Gadget():
         self.complexity = complexity
         self.side_pops = []
 
+    def compile(self):
+        return pack('<I', self.address)
+
 class GadgetFinder():
     def __init__(self, gadgets={}) -> None:
         self.gadgets = gadgets
+        self.data = 0x0
         self.wwarnlist = ['dword']
         self.jmpregs = ['eax', 'ebx', 'ecx', 'edx', 'ebp', 'esi', 'edi', 'ebp']
 
@@ -30,7 +35,8 @@ class GadgetFinder():
 
     def parse_gadget(self, addr, parts, instruction):
         # TODO jmp case
-        if parts[len(parts) - 1].strip() != 'ret': return
+        if parts[len(parts) - 1].strip() != 'ret':
+            if instruction != 'int 0x80': return
 
         gadget = Gadget(addr, 0)
         reserved = instruction.reserved.copy()
@@ -64,9 +70,18 @@ class GadgetFinder():
         for instruction in instructions:
             regex = re.search(instruction.value.replace('[', '\[').replace(']', '\]'), line)
             if regex:
-                addr = line[0:10]
-                parts = line[13:-1].split(';')
+                addr = int(line[0:10], 16)
+                seq = line[13:-1]
+                if seq == 'int 0x80': self.gadgets['int 0x80'] = Gadget(addr, 1)
+                parts = seq.split(';')
                 self.parse_gadget(addr, parts, instruction)
+
+    def search_data(self, line):
+        regex = re.search('.data', line)
+        if regex:
+            parts = line.split(' ')
+            if parts[-1] == '.data': self.data = int(parts[3][:-1], 16)
+
 
     def start(self, stdout, instructions):
     
@@ -76,3 +91,6 @@ class GadgetFinder():
         pattern = re.compile(r'^[0-9a-fA-F]+')
         for line in stdout:
             if pattern.match(line): self.search_gadgets(line, instructions)
+            elif re.search('.data', line):
+                parts = line.split(' ')
+                if parts[-1].strip() == '.data': self.data = int(parts[3][:-1], 16)
