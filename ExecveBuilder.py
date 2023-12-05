@@ -27,7 +27,7 @@ class ExecveBuilder():
         instructions = []
         for dst in self.regs:
             if dst == self.SRC: continue
-            instructions.append(Instruction('mov dword ptr [' + dst + '], ' + self.SRC, ['esp']))
+            instructions.append(Instruction('mov dword ptr [' + dst + '], ' + self.SRC, ['eax', 'edx', 'esp']))
 
         self.gadget_finder.start(stdout, instructions)
 

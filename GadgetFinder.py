@@ -3,9 +3,10 @@ import re
 from struct import pack
 
 class Instruction():
-    def __init__(self, value, reserved) -> None:
+    def __init__(self, value, pre_reserved = [], post_reserved = []) -> None:
         self.value = value
-        self.reserved = reserved
+        self.pre_reserved = pre_reserved
+        self.post_reserved = post_reserved
 
 class Gadget():
     def __init__(self, addr, complexity) -> None:
@@ -39,7 +40,7 @@ class GadgetFinder():
             if instruction != 'int 0x80': return
 
         gadget = Gadget(addr, 0)
-        reserved = instruction.reserved.copy()
+        reserved = instruction.pre_reserved.copy()
 
         for p in parts:
             words = list(filter(lambda x: len(x) > 0, p.split(' ')))
@@ -55,7 +56,9 @@ class GadgetFinder():
                     at_waddr = False
                 else: waddr = ''
                 if waddr in reserved: return
-                if p.strip() == instruction.value and len(waddr) > 0: reserved.append(waddr)  
+                if p.strip() == instruction.value:
+                    reserved = instruction.post_reserved.copy()
+                    if len(waddr) > 0: reserved.append(waddr)
 
             if ins == 'pop': gadget.side_pops.append(words[1])
             gadget.complexity += 1
