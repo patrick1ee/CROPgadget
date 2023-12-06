@@ -170,9 +170,12 @@ class ShellcodeCompiler():
         offset = self.stack_size
 
         regs = {'eax': 0, 'ebx': 0, 'ecx': 0, 'edx': 0}
+        src_reg_reset = 0
         
         for idx, instruction in enumerate(self.disassembly):
             if skip: continue
+            print("\n\n0x%x:\t%s\t%s" % (instruction.address, instruction.mnemonic, instruction.op_str))
+            print(str(regs) + "\n")
             if instruction.mnemonic == 'push':
                 if instruction.op_str[0:2] == '0x':
                     if self.disassembly[idx + 1].mnemonic == 'pop':
@@ -183,20 +186,30 @@ class ShellcodeCompiler():
                         p += self.pad_pop_reg(self.SRC, pack('<I', int(instruction.op_str, 16)), regs)
                         p += self.gadgets['mov dword ptr [' + self.DST + '], ' + self.SRC].compile()
                         print('mov dword ptr [' + self.DST + '], ' + self.SRC)
+
+                        if src_reg_reset == 0: p += self.gadgets['xor ' + self.SRC + ", " + self.SRC].compile()
+                        print('xor ' + self.SRC + ", " + self.SRC)
                         offset -= 4
                 elif instruction.op_str in regs.keys():
                     p += self.pad_pop_reg(self.DST, pack('<I', self.DATA + offset), regs)
-                    p += self.pad_pop_reg(self.SRC, pack('<I', regs[instruction.op_str]), regs)
+                    
+                    if regs[instruction.op_str] > 0: p += self.pad_pop_reg(self.SRC, pack('<I', regs[instruction.op_str]), regs)
+                    else: 
+                        p += self.gadgets['xor ' + self.SRC + ", " + self.SRC].compile()
+                        print('xor ' + self.SRC + ", " + self.SRC)
                     p += self.gadgets['mov dword ptr [' + self.DST + '], ' + self.SRC].compile()
                     print('mov dword ptr [' + self.DST + '], ' + self.SRC)
+
+                    if src_reg_reset == 0: p += self.gadgets['xor ' + self.SRC + ", " + self.SRC].compile()
+                    print('xor ' + self.SRC + ", " + self.SRC)
                     offset -= 4
 
             elif len(instruction.op_str.split(',')) == 2:
                 dst = instruction.op_str.split(',')[0].replace('[', '').replace(']', '')
                 src = instruction.op_str.split(',')[1].replace('[', '').replace(']', '').strip()
                 if instruction.mnemonic == 'mov' and src == 'esp': 
-                    p += self.pad_pop_reg(dst, pack('<I', self.DATA + offset), regs)
-                    regs[dst] = self.DATA + offset
+                    p += self.pad_pop_reg(dst, pack('<I', self.DATA + offset + 4), regs)
+                    regs[dst] = self.DATA + offset + 4
                 elif instruction.mnemonic == 'mov' and src[0:2] == '0x':
                     if dst in ['al']: dst = 'eax'
                     for _ in range(0, int(src, 16)): 
@@ -206,8 +219,17 @@ class ShellcodeCompiler():
                     p += self.gadgets[instruction.mnemonic + " " + instruction.op_str].compile()
                     print(instruction.mnemonic + " " + instruction.op_str)
 
-                    if instruction.mnemonic == 'xor' and src == dst: regs[dst] = 0 
+                    if instruction.mnemonic == 'xor' and src == dst: 
+                        regs[dst] = 0
+                        src_reg_reset = 0 
+            else:
+                p += self.gadgets[instruction.mnemonic + " " + instruction.op_str].compile()
+                print(instruction.mnemonic + " " + instruction.op_str)
         self.chain = p
+
+        print('\n')
+        formatted_bytes = ' '.join([str(hex(int.from_bytes(self.chain[i:i+4], "little"))) for i in range(0, len(self.chain), 4)])
+        print(formatted_bytes)
 
     def write_chain(self):
         out_file = open('exp', 'wb')
