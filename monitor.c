@@ -51,6 +51,8 @@ int monitor(long data_address) {
             exit(EXIT_FAILURE);
         }
 
+        int correct = 0;
+
         // Continue the child process
         ptrace(PTRACE_SINGLESTEP, child_pid, NULL, NULL);
         // Main loop to monitor the memory address
@@ -77,20 +79,32 @@ int monitor(long data_address) {
             printf("rsp: %llx ", regs.rsp);
             printf("rdi: %llx ", regs.rdi);
             printf("rsi: %llx ", regs.rsi);
-            printf("ebp: %llx ", regs.rbp);
+            printf("rbp: %llx ", regs.rbp);
+
+            long rbp_value = ptrace(PTRACE_PEEKDATA, child_pid, (void *)regs.rbp, NULL);
+            printf("rbp_value: %lx ", rbp_value);
+
+            if (regs.rbp == 0xffffd268) {
+                correct =  1;
+            }
             printf("address: %lx\n", data_address);
-            //printf("ebp: %llx \n", regs.);
-            if (regs.rip - 1 == data_address) {
+            if (regs.rip - 2 == data_address) {
                 printf("breakpoint:\n");
                 unsigned long long sp = regs.rbp;
 
-                for (int i =0; i < 40; i++){
+                int address;
+                int ebp_value;
+                asm("movl %%ebp, %0" : "=r"(address));
+                asm("movl (%0), %1" : : "r"(address), "r"(ebp_value));
+                printf("Value at ebp: %d: %p\n", ebp_value, address);
+
+                for (int i =0; i < 4; i++){
                 // Read the data at the specified memory address
-                long data = ptrace(PTRACE_PEEKDATA, child_pid, sp, NULL);
+                long data = ptrace(PTRACE_PEEKDATA, child_pid, 0xffffd268, NULL);
 
                 // Print the monitored data
                 printf("Data at 0x%llx: %lx\n", sp, data);
-                sp++;
+                sp += 16;
                 }
                 break;
 
@@ -102,9 +116,14 @@ int monitor(long data_address) {
                 ptrace(PTRACE_SINGLESTEP, child_pid, NULL, NULL);
             }
 
-            //if (c > 100000) break;
+            if (c > 100000) break;
             if (regs.rip == 0x80488da) break;
             c++;
+        }
+        if (correct){
+            printf("was at correct address\n");
+        } else {
+            printf("didnt hit correct address\n");
         }
     }
 

@@ -27,6 +27,7 @@ int main(int argc, char *argv[])
 		//printf("error");
 		return (0);
 	}
+
 	printf("file opened\n");
 	fread(buffer, 699,1,file);
 	fclose(file);

@@ -10,11 +10,10 @@ from ctypes import *
 
 #use a stack canary, binary search until 1 under when stack canary stops you then go one up
 
-def get_function_addresses():
-    command = 'objdump -d vuln3-32 > disassembly.asm'
+def get_function_addresses(binary):
+    command = 'objdump -d ', binary, ' > disassembly.asm'
     proc = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     proc.wait()
-    output = (proc.stdout.read(), proc.stderr.read())
     
     lines = []
     functions = []
@@ -50,19 +49,20 @@ def get_function_addresses():
         for i, line in enumerate(fp):
             for num in lines:
                 if i == num - 1:
-                    address = '0' + line[1:8]
+                    address = line[1:8]
                     addresses.append(address)
     return addresses
 
-def get_target():
+def get_target(binary, addresses):
     gdbmi = GdbController()
-    gdbmi.write("-file-exec-and-symbols vuln3-32")
-    for i in range (len(addresses)):
-        gdbmi.write('b *0x' + addresses[i])
+    gdbmi.write("-file-exec-and-symbols " + binary)
+    for address in addresses:
+        gdbmi.write('b *0x' + address)
     gdbmi.write('r input')
     response = gdbmi.write('x/4wx $ebp')
     target = response[1]['payload'][14:22]
     overflows = response[1]['payload'][25:32] + response[1]['payload'][36:44] + response[1]['payload'][47:55]
+    print(target, overflows)
     return target, overflows
 
 def too_high(overflows):
@@ -74,22 +74,23 @@ def too_low(target):
     return True
 
 if __name__ == '__main__':
-    addresses = get_function_addresses()
+    binary = sys.argv[1]
+    addresses = get_function_addresses(binary)
 
     found_overflow = False
     buffer_length = 512
     min = 1
     max = 1024
 
-    while found_overflow == False:
+    while not found_overflow:
+        print(buffer_length)
         buffer_length = (min + max)//2
-
         f = open('input', "w")
         string = "A" * int(buffer_length)
         f.write(string)
         f.close()
 
-        target, overflows = get_target()
+        target, overflows = get_target(binary, addresses)
         high = too_high(overflows)
         low = too_low(target)
 
@@ -100,50 +101,10 @@ if __name__ == '__main__':
             min = buffer_length + 1
 
         
-    print(buffer_length)
+    print("buffer length:", buffer_length)
 
     # shared_file = "/vagrant/monitor.so"
     # c_funcs = CDLL(shared_file)
 
     # c_funcs.monitor(int(addresses[0],16))
     #c_funcs.monitor(int(addresses[1],16))
-
-
-    # #this could be a potential way but reading proc/$pid/mem is denied
-    # process = subprocess.Popen(['/vagrant/vuln3-32', 'input'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    # pid = process.pid
-    # print('pid:', pid)
-    # process.send_signal(signal.SIGSTOP)
-
-
-    # # command = str('sudo cat /proc/' + str(pid) + '/maps')
-    # # map = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    # # exit_code = map.wait()
-    # # output, error = process.communicate()
-    # # print(output, error, exit_code)
-
-    
-    # with open('/proc/1204/maps', 'r') as fp:
-    #     for i, line in enumerate(fp):
-    #         print(line)
-
-    # for i in range (len(addresses)):
-    #     #reads location from pid
-    #     command = str('sudo dd bs=1 skip="$((0x' + addresses[i] + '))" count=4 if="/proc/' + str(pid) + '/mem" | od -An -vtu4')
-    #     data = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    #     data.wait()
-    #     output = (data.stdout.read(), data.stderr.read())
-    #     pprint(output[0].hex())
-
-    # process.send_signal(signal.SIGCONT)
-    # exit_code = process.wait()
-    # output, error = process.communicate()
-    # print(output, error, exit_code)
-
-
-    #another way could be using ptrace
-        #would need to find a way to pipe addresses here into c though
-
-
-
-#objdump -d your-program
