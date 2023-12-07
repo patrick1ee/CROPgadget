@@ -14,6 +14,7 @@ def get_function_addresses(binary):
     command = 'objdump -d ' + binary + ' > disassembly.asm'
     proc = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     proc.wait()
+    print("Binary Dumped")
     output = (proc.stdout.read(), proc.stderr.read())
     
     lines = []
@@ -81,8 +82,11 @@ def get_padding_gdb(binary):
     min = 1
     max = 1024
 
+    print("Trying buffer length:")
+
     while found_overflow == False:
         buffer_length = (min + max)//2
+        print(buffer_length, end = '... ', flush=True)
 
         f = open('input', "w")
         string = "A" * int(buffer_length)
@@ -98,8 +102,8 @@ def get_padding_gdb(binary):
             max = buffer_length - 1
         else: 
             min = buffer_length + 1
-
-        
+            
+    print('')
     return buffer_length
 
     # shared_file = "/vagrant/monitor.so"
