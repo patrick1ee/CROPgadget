@@ -10,6 +10,8 @@ from src.ShellcodeCompiler import *
 
 import src.gdb as gdb
 
+#python3 Main.py binaries/vuln3-32 -s shellcodes/bash -o exp
+
 def read_hex_file(file_path):
     bytes = b''
     with open(file_path, 'r') as file:
