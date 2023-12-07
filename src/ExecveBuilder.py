@@ -16,7 +16,7 @@ class ExecveBuilder():
         for src in self.regs:
             instructions.append(Instruction('xor ' + src + ', ' + src, ['esp']))
 
-        self.gadget_finder.start(stdout, instructions)
+        self.gadget_finder.start(stdout, instructions, 1, 3)
         
         ins, gad = self.gadget_finder.find_lowest_complexity()
         self.SRC = ins.split(' ')[1][:-1]
@@ -29,7 +29,7 @@ class ExecveBuilder():
             if dst == self.SRC: continue
             instructions.append(Instruction('mov dword ptr [' + dst + '], ' + self.SRC, ['eax', 'edx', 'esp']))
 
-        self.gadget_finder.start(stdout, instructions)
+        self.gadget_finder.start(stdout, instructions, 2, 3)
 
         ins, gad = self.gadget_finder.find_lowest_complexity()
         self.DST = ins.split('[')[1].split(']')[0]
@@ -76,7 +76,7 @@ class ExecveBuilder():
 
         if self.SRC != 'eax': instructions.append(Instruction('xor eax, eax', ['esp']))
 
-        self.gadget_finder.start(stdout, instructions)
+        self.gadget_finder.start(stdout, instructions, 3, 3)
         self.gadgets = self.gadget_finder.gadgets
         self.DATA = self.gadget_finder.data
 

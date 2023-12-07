@@ -86,8 +86,8 @@ class GadgetFinder():
             if parts[-1] == '.data': self.data = int(parts[3][:-1], 16)
 
 
-    def start(self, stdout, instructions):
-    
+    def start(self, stdout, instructions, s=0, t=0):
+        print('\nGathering gadget sets ' + str(s) + '/' + str(t) + '...\n')
         for ins in instructions:
             self.gadgets[ins.value] = Gadget(0x0, math.inf)
 
