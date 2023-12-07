@@ -33,9 +33,11 @@ def main():
 
     args = parser.parse_args()
 
+    outfile = 'exp' if args.o is None else args.o
+
     sc_mode = False
     shellcode = b''
-    if len(args.s) > 0:
+    if args.s is not None:
         try:
             shellcode = read_hex_file(args.s)
             sc_mode = True
@@ -70,14 +72,14 @@ def main():
             output_stream = io.TextIOWrapper(process.stdout, newline='\n', encoding='utf-8')
             sc.start(output_stream, buffer)
 
-        sc.write_chain(args.o)
+        sc.write_chain(outfile)
 
     else:
         with subprocess.Popen(command_rg, stdout=subprocess.PIPE) as process:
             output_stream = io.TextIOWrapper(process.stdout, newline='\n', encoding='utf-8')
             eb.build_chain(output_stream, args.c.split(' ')[0], args.c.split(' ')[1:], buffer)
 
-        eb.write_chain(args.o)
+        eb.write_chain(outfile)
 
         gadgets = eb.gadget_finder.gadgets
         for k, v in gadgets.items():
