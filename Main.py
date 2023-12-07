@@ -85,5 +85,8 @@ def main():
 
         print("DATA " + str(hex(eb.gadget_finder.data)))
 
+    subprocess.run("rm disassembly.asm", stdout=subprocess.PIPE, shell=True)
+    subprocess.run("rm input", stdout=subprocess.PIPE, shell=True)
+
 
 main()
