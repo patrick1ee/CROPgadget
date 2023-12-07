@@ -108,7 +108,7 @@ class ShellcodeCompiler():
                 if instruction.op_str not in reserved: reserved.append(instruction.op_str)
             pre_reserve_snapshots.insert(0, reserved.copy())
 
-        print('\n===============Shellcode Reservations===============')
+        print('\nInferring register access...\n')
         for idx, instruction in enumerate(self.disassembly):
             new_instruction = instruction.mnemonic + ' ' + instruction.op_str
             if instruction.mnemonic == 'push':
@@ -187,15 +187,15 @@ class ShellcodeCompiler():
         self.DST = self.execve_builder.DST
         self.add_instructions()
 
-        self.gadget_finder.start(stdout, self.instructions)
+        self.gadget_finder.start(stdout, self.instructions, 3, 3)
         self.gadgets = self.gadget_finder.gadgets
         self.DATA = self.gadget_finder.data
         
         print('\n===============Gadgets===============')
         for k, v in self.gadgets.items():
-            print(k + " :: " + str(hex(v.address)) + ", " + str(v.complexity )+ ", " + str(v.side_pops))
+            print(k + " :: Addr: " + str(hex(v.address)) + ", Complexity: " + str(v.complexity )+ ", Ext popped regs: " + str(v.side_pops))
         
-        print("DATA " + str(hex(self.gadget_finder.data)) + "\n")
+        print("DATA @ " + str(hex(self.gadget_finder.data)) + "\n")
 
         skip = False
         p = b'A'*padding
@@ -203,13 +203,16 @@ class ShellcodeCompiler():
 
         regs = {'eax': 0, 'ebx': 0, 'ecx': 0, 'edx': 0}
         src_reg_reset = 0
+
+        print('\n==========Shellcode >>> Gadgets===========\n')
         
         for idx, instruction in enumerate(self.disassembly):
             if skip: 
                 skip = False
                 continue
             print("\n\n0x%x:\t%s\t%s" % (instruction.address, instruction.mnemonic, instruction.op_str))
-            print(str(regs) + "\n")
+            print("    |")
+            print("    V")
             if instruction.mnemonic == 'push':
                 oparts = instruction.op_str.split(' ')
                 mode = None if len(oparts) != 2 else oparts[0]
@@ -293,7 +296,7 @@ class ShellcodeCompiler():
                 print(instruction.mnemonic + " " + instruction.op_str)
         self.chain = p
 
-        print('\n')
+        print('\n ======================= Final ROPchain ==========================')
         formatted_bytes = ' '.join([str(hex(int.from_bytes(self.chain[i:i+4], "little"))) for i in range(0, len(self.chain), 4)])
         print(formatted_bytes)
 
