@@ -1,4 +1,13 @@
 If using Vagrant:
-    ```
-    vagrant up
-    ```
+    vagrant
+    vagrant ssh
+    cd /vagrant
+
+Run [sudo] bash setup.py
+Run make to compile the vulnerable sources
+
+For Exeve:
+python3 Main.py [BINARY PATH] -c '/bin//sh -a someArg' -o [EXPLOIT FILE PATH]
+
+For shellcode:
+python3 Main.py [BINARY PATH] -s [SHELLCODE PATH] -o [EXPLOIT FILE PATH]
